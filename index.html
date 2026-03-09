@@ -134,8 +134,8 @@
         .title-side  { background-color: var(--title-red);  border-radius: 6px 0 0 6px; }
         .author-side { background-color: var(--author-red); border-radius: 0 6px 6px 0; border-left: 1px solid rgba(255,255,255,0.2); }
 
-        .success { border: 4px solid #2ecc71 !important; box-shadow: 0 0 0 3px #2ecc71, 0 0 18px rgba(46, 204, 113, 0.7) !important; }
-        .error   { border: 4px solid #ff1a00 !important; box-shadow: 0 0 0 3px #ff1a00, 0 0 18px rgba(255, 26, 0, 0.8) !important; }
+        .success { border: 2px solid #2ecc71 !important; box-shadow: 0 0 8px rgba(46, 204, 113, 0.6) !important; }
+        .error   { border: 2px solid #ff1a00 !important; box-shadow: 0 0 8px rgba(255, 26, 0, 0.6) !important; }
 
         #zoom-controls {
             position: fixed;
@@ -366,41 +366,52 @@
     }
 
     function checkGame() {
-        const dW = 160, dH = 55, thr = 15;
+        const dW = 160, dH = 55, thr = 5;
         const doms = Array.from(document.querySelectorAll('.domino'));
-        doms.forEach(d => { d.dataset.valid = "false"; d.dataset.hasNeighbor = "false"; });
+
+        doms.forEach(d => {
+            d.classList.remove('success', 'error');
+            delete d.dataset.hasNeighbor;
+            delete d.dataset.hasValidPair;
+        });
 
         doms.forEach(d1 => {
             const x1 = parseFloat(d1.style.left);
             const y1 = parseFloat(d1.style.top);
-            const author = d1.querySelector('.author-side').innerText.trim();
+            const author1 = d1.querySelector('.author-side').innerText.trim();
+            const title1  = d1.querySelector('.title-side').innerText.trim();
 
             doms.forEach(d2 => {
                 if (d1 === d2) return;
                 const x2 = parseFloat(d2.style.left);
                 const y2 = parseFloat(d2.style.top);
-                const title = d2.querySelector('.title-side').innerText.trim();
+                const author2 = d2.querySelector('.author-side').innerText.trim();
+                const title2  = d2.querySelector('.title-side').innerText.trim();
 
-                // d1 szerző oldala érintkezik d2 cím oldalával – minden irányban
-                const toRight  = Math.abs((x1 + dW) - x2) < thr && Math.abs(y1 - y2) < thr;
-                const toBottom = Math.abs((y1 + dH) - y2) < thr && Math.abs(x1 - x2) < thr;
-                const toTop    = Math.abs(y1 - (y2 + dH)) < thr && Math.abs(x1 - x2) < thr;
+                const touchRight = Math.abs((x1 + dW) - x2) < thr && Math.abs(y1 - y2) < thr;
+                const touchLeft  = Math.abs(x1 - (x2 + dW)) < thr && Math.abs(y1 - y2) < thr;
+                const overlapX = x1 < x2 + dW && x1 + dW > x2;
+                const touchBottom = Math.abs((y1 + dH) - y2) < thr && overlapX;
+                const touchTop    = Math.abs(y1 - (y2 + dH)) < thr && overlapX;
+                const touches = touchRight || touchLeft || touchBottom || touchTop;
 
-                if (toRight || toBottom || toTop) {
-                    d1.dataset.hasNeighbor = "true";
-                    d2.dataset.hasNeighbor = "true";
-                    if (helyesParing[author] === title) {
-                        d1.dataset.valid = "true";
-                        d2.dataset.valid = "true";
-                    }
+                if (!touches) return;
+
+                d1.dataset.hasNeighbor = "true";
+                d2.dataset.hasNeighbor = "true";
+
+                const pairOk = (helyesParing[author1] === title2) || (helyesParing[author2] === title1);
+                if (pairOk) {
+                    d1.dataset.hasValidPair = "true";
+                    d2.dataset.hasValidPair = "true";
                 }
             });
         });
 
         doms.forEach(d => {
-            d.classList.remove('success', 'error');
-            if (d.dataset.hasNeighbor === "true")
-                d.classList.add(d.dataset.valid === "true" ? 'success' : 'error');
+            if (d.dataset.hasNeighbor === "true") {
+                d.classList.add(d.dataset.hasValidPair === "true" ? 'success' : 'error');
+            }
         });
     }
 
@@ -424,10 +435,8 @@
         shuffled.forEach((d, i) => {
             const el = document.createElement('div');
             el.className = 'domino';
-            const jitterX = Math.floor(Math.random() * 30) - 15;
-            const jitterY = Math.floor(Math.random() * 20) - 10;
-            el.style.left = (startX + (i % cols) * spacingX + jitterX) + 'px';
-            el.style.top  = (startY + Math.floor(i / cols) * spacingY + jitterY) + 'px';
+            el.style.left = (startX + (i % cols) * spacingX) + 'px';
+            el.style.top  = (startY + Math.floor(i / cols) * spacingY) + 'px';
             el.innerHTML  = `<div class="part title-side">${d.bal}</div><div class="part author-side">${d.jobb}</div>`;
             makeDraggable(el);
             canvas.appendChild(el);
