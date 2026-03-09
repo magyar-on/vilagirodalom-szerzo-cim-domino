@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IRODALMI DOMINÓ – VILÁGIRODALOM</title>
+    <style>
+        :root {
+            --header-bg: #fff5f5;
+            --author-red: #7a0000;
+            --title-red: #e05555;
+            --text-dark: #2c3e50;
+            --domino-w: 160px;
+            --domino-h: 55px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background-color: #fdf5f5;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        header {
+            background-color: var(--header-bg);
+            width: 100%;
+            padding: 0;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(120,0,0,0.08);
+            z-index: 100;
+            transition: transform 0.4s ease;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        header.collapsed { transform: translateY(-100%); }
+
+        .header-inner { padding: 10px 0 30px 0; }
+
+        h1 { margin: 0; text-transform: uppercase; font-weight: 800; color: var(--text-dark); font-size: clamp(18px, 5vw, 24px); }
+        .instruction { color: #57606f; font-weight: 600; margin: 5px 0; font-size: clamp(12px, 3.5vw, 14px); }
+
+        #toggle-header {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 25px;
+            background: var(--header-bg);
+            border: none;
+            border-radius: 0 0 15px 15px;
+            box-shadow: 0 4px 6px rgba(120,0,0,0.1);
+            cursor: pointer;
+            color: var(--author-red);
+            font-weight: bold;
+            z-index: 110;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #check-btn {
+            padding: 10px 30px;
+            background-color: var(--author-red);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #viewport {
+            flex-grow: 1;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+            background-image: radial-gradient(#f0c0c0 1px, transparent 1px);
+            background-size: 30px 30px;
+            cursor: grab;
+        }
+
+        #viewport.panning { cursor: grabbing; }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3000px;
+            height: 3000px;
+            transform-origin: 0 0;
+        }
+
+        .domino {
+            width: var(--domino-w);
+            height: var(--domino-h);
+            position: absolute;
+            display: flex;
+            cursor: grab;
+            user-select: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(120,0,0,0.15);
+            background: white;
+            border: 2px solid #fff;
+            z-index: 10;
+            touch-action: none;
+        }
+
+        .domino:active { cursor: grabbing; }
+
+        .part {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.1;
+            pointer-events: none;
+            color: white;
+        }
+
+        .title-side  { background-color: var(--title-red);  border-radius: 6px 0 0 6px; }
+        .author-side { background-color: var(--author-red); border-radius: 0 6px 6px 0; border-left: 1px solid rgba(255,255,255,0.2); }
+
+        .success { border-color: #2ecc71 !important; box-shadow: 0 0 15px rgba(46, 204, 113, 0.5) !important; }
+        .error   { border-color: #c0392b !important; box-shadow: 0 0 15px rgba(192, 57, 43, 0.4) !important; }
+
+        #zoom-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 200;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--author-red);
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 3px 8px rgba(120,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
+
+        #zoom-level {
+            text-align: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--author-red);
+        }
+    </style>
+</head>
+<body>
+
+<header id="main-header">
+    <div class="header-inner">
+        <h1>IRODALMI DOMINÓ</h1>
+        <p class="instruction">Párosítsd a szerzőket és a műveket!</p>
+        <button id="check-btn" onclick="checkGame()">ELLENŐRZÉS</button>
+    </div>
+    <button id="toggle-header" onclick="toggleHeader()">▲</button>
+</header>
+
+<div id="viewport">
+    <div id="canvas"></div>
+</div>
+
+<div id="zoom-controls">
+    <button class="zoom-btn" onclick="zoomBy(0.2)">+</button>
+    <div id="zoom-level">100%</div>
+    <button class="zoom-btn" onclick="zoomBy(-0.2)">−</button>
+</div>
+
+<script>
+    const helyesParing = {
+        "Thomas Mann":      "Tonio Kröger",
+        "Lev Tolsztoj":     "Ivan Iljics halála",
+        "Franz Kafka":      "Az átváltozás",
+        "Csehov":           "A sirály",
+        "Homérosz":         "Odüsszeia",
+        "Dürrenmatt":       "A fizikusok",
+        "Bertold Brecht":   "Kurázsi mama és gyermekei",
+        "Ibsen":            "A vadkacsa",
+        "Gogol":            "A köpönyeg",
+        "Boccaccio":        "Dekameron",
+        "Beckett":          "Godot-ra várva",
+        "Puskin":           "Anyegin",
+        "Dosztojevszkij":   "Bűn és bűnhődés",
+        "Szophoklész":      "Antigoné",
+        "Molière":          "Tartuffe",
+        "Dante":            "Isteni színjáték",
+        "Balzac":           "Goriot apó",
+        "Edgar Allen Poe":  "A Morgue utcai kettős gyilkosság",
+        "Villon":           "A nagy testamentum",
+        "Swift":            "Gulliver utazásai"
+    };
+
+    // bal = cím (title-side), jobb = szerző (author-side)
+    const dominoAdatok = [
+        { bal: "Gulliver utazásai",                      jobb: "Thomas Mann" },
+        { bal: "Tonio Kröger",                           jobb: "Lev Tolsztoj" },
+        { bal: "Ivan Iljics halála",                     jobb: "Franz Kafka" },
+        { bal: "Az átváltozás",                          jobb: "Csehov" },
+        { bal: "A sirály",                               jobb: "Homérosz" },
+        { bal: "Odüsszeia",                              jobb: "Dürrenmatt" },
+        { bal: "A fizikusok",                            jobb: "Bertold Brecht" },
+        { bal: "Kurázsi mama és gyermekei",              jobb: "Ibsen" },
+        { bal: "A vadkacsa",                             jobb: "Gogol" },
+        { bal: "A köpönyeg",                             jobb: "Boccaccio" },
+        { bal: "Dekameron",                              jobb: "Beckett" },
+        { bal: "Godot-ra várva",                         jobb: "Puskin" },
+        { bal: "Anyegin",                                jobb: "Dosztojevszkij" },
+        { bal: "Bűn és bűnhődés",                       jobb: "Szophoklész" },
+        { bal: "Antigoné",                               jobb: "Molière" },
+        { bal: "Tartuffe",                               jobb: "Dante" },
+        { bal: "Isteni színjáték",                       jobb: "Balzac" },
+        { bal: "Goriot apó",                             jobb: "Edgar Allen Poe" },
+        { bal: "A Morgue utcai kettős gyilkosság",       jobb: "Villon" },
+        { bal: "A nagy testamentum",                     jobb: "Swift" }
+    ];
+
+    const viewport = document.getElementById('viewport');
+    const canvas   = document.getElementById('canvas');
+    const header   = document.getElementById('main-header');
+    const toggleBtn = document.getElementById('toggle-header');
+
+    let scale = 1, panX = 0, panY = 0;
+    const MIN_SCALE = 0.3, MAX_SCALE = 2.0;
+
+    function applyTransform() {
+        canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
+    }
+
+    function zoomBy(delta, cx, cy) {
+        const vRect = viewport.getBoundingClientRect();
+        const centerX = cx !== undefined ? cx : vRect.width / 2;
+        const centerY = cy !== undefined ? cy : vRect.height / 2;
+        const oldScale = scale;
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + delta));
+        panX = centerX - (centerX - panX) * (scale / oldScale);
+        panY = centerY - (centerY - panY) * (scale / oldScale);
+        applyTransform();
+    }
+
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const vRect = viewport.getBoundingClientRect();
+        zoomBy(e.deltaY < 0 ? 0.1 : -0.1, e.clientX - vRect.left, e.clientY - vRect.top);
+    }, { passive: false });
+
+    let panPointers = {}, lastPinchDist = null, isPanning = false;
+    let panStartX, panStartY, panStartPanX, panStartPanY;
+
+    viewport.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.domino')) return;
+        panPointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+        if (Object.keys(panPointers).length === 1) {
+            isPanning = true;
+            panStartX = e.clientX; panStartY = e.clientY;
+            panStartPanX = panX;   panStartPanY = panY;
+            viewport.classList.add('panning');
+        }
+        viewport.setPointerCapture(e.pointerId);
+    });
+
+    viewport.addEventListener('pointermove', (e) => {
+        if (!panPointers[e.pointerId]) return;
+        panPointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+        const ids = Object.keys(panPointers);
+        if (ids.length === 2) {
+            const [a, b] = ids.map(id => panPointers[id]);
+            const dist = Math.hypot(b.x - a.x, b.y - a.y);
+            if (lastPinchDist !== null) {
+                const vRect = viewport.getBoundingClientRect();
+                zoomBy((dist - lastPinchDist) * 0.008,
+                    (a.x + b.x) / 2 - vRect.left,
+                    (a.y + b.y) / 2 - vRect.top);
+            }
+            lastPinchDist = dist;
+            isPanning = false;
+        } else if (ids.length === 1 && isPanning) {
+            panX = panStartPanX + (e.clientX - panStartX);
+            panY = panStartPanY + (e.clientY - panStartY);
+            applyTransform();
+        }
+    });
+
+    viewport.addEventListener('pointerup', (e) => {
+        delete panPointers[e.pointerId];
+        if (Object.keys(panPointers).length < 2) lastPinchDist = null;
+        if (Object.keys(panPointers).length === 0) { isPanning = false; viewport.classList.remove('panning'); }
+    });
+
+    viewport.addEventListener('pointercancel', (e) => {
+        delete panPointers[e.pointerId];
+        if (Object.keys(panPointers).length === 0) { isPanning = false; viewport.classList.remove('panning'); lastPinchDist = null; }
+    });
+
+    function makeDraggable(el) {
+        let startCanvasX, startCanvasY, startElX, startElY;
+
+        el.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            el.setPointerCapture(e.pointerId);
+            el.classList.remove('success', 'error');
+            el.style.zIndex = 1000;
+            const vRect = viewport.getBoundingClientRect();
+            startCanvasX = (e.clientX - vRect.left - panX) / scale;
+            startCanvasY = (e.clientY - vRect.top  - panY) / scale;
+            startElX = parseFloat(el.style.left) || 0;
+            startElY = parseFloat(el.style.top)  || 0;
+
+            el.onpointermove = (ev) => {
+                const cx = (ev.clientX - vRect.left - panX) / scale;
+                const cy = (ev.clientY - vRect.top  - panY) / scale;
+                el.style.left = (startElX + cx - startCanvasX) + 'px';
+                el.style.top  = (startElY + cy - startCanvasY) + 'px';
+                snap(el);
+            };
+
+            el.onpointerup = () => {
+                el.style.zIndex = 10;
+                el.onpointermove = null;
+                el.releasePointerCapture(e.pointerId);
+            };
+        });
+    }
+
+    function snap(active) {
+        const dW = 160, dH = 55, threshold = 22;
+        const ax = parseFloat(active.style.left);
+        const ay = parseFloat(active.style.top);
+
+        document.querySelectorAll('.domino').forEach(other => {
+            if (other === active) return;
+            const ox = parseFloat(other.style.left);
+            const oy = parseFloat(other.style.top);
+            if (Math.abs(ay - oy) < threshold && Math.abs((ax + dW) - ox) < threshold) { active.style.left = (ox - dW) + 'px'; active.style.top = oy + 'px'; }
+            if (Math.abs(ay - oy) < threshold && Math.abs(ax - (ox + dW)) < threshold) { active.style.left = (ox + dW) + 'px'; active.style.top = oy + 'px'; }
+            if (Math.abs((ax + dW/2) - (ox + dW/2)) < threshold && Math.abs((ay + dH) - oy) < threshold) { active.style.left = ox + 'px'; active.style.top = (oy - dH) + 'px'; }
+            if (Math.abs((ax + dW/2) - (ox + dW/2)) < threshold && Math.abs(ay - (oy + dH)) < threshold) { active.style.left = ox + 'px'; active.style.top = (oy + dH) + 'px'; }
+        });
+    }
+
+    function checkGame() {
+        const dW = 160, dH = 55;
+        const doms = Array.from(document.querySelectorAll('.domino'));
+        doms.forEach(d => { d.dataset.valid = "false"; d.dataset.hasNeighbor = "false"; });
+
+        doms.forEach(d1 => {
+            const x1 = parseFloat(d1.style.left);
+            const y1 = parseFloat(d1.style.top);
+            const author = d1.querySelector('.author-side').innerText.trim();
+
+            doms.forEach(d2 => {
+                if (d1 === d2) return;
+                const x2 = parseFloat(d2.style.left);
+                const y2 = parseFloat(d2.style.top);
+                const title = d2.querySelector('.title-side').innerText.trim();
+
+                const isRight = Math.abs((x1 + dW) - x2) < 15 && Math.abs(y1 - y2) < 15;
+                const isBelow = Math.abs(x1 - x2) < 15 && Math.abs((y1 + dH) - y2) < 15;
+                const isAbove = Math.abs(x1 - x2) < 15 && Math.abs(y1 - (y2 + dH)) < 15;
+
+                if (isRight || isBelow || isAbove) {
+                    d1.dataset.hasNeighbor = "true";
+                    d2.dataset.hasNeighbor = "true";
+                    if (helyesParing[author] === title) {
+                        d1.dataset.valid = "true";
+                        d2.dataset.valid = "true";
+                    }
+                }
+            });
+        });
+
+        doms.forEach(d => {
+            d.classList.remove('success', 'error');
+            if (d.dataset.hasNeighbor === "true")
+                d.classList.add(d.dataset.valid === "true" ? 'success' : 'error');
+        });
+    }
+
+    function toggleHeader() {
+        header.classList.toggle('collapsed');
+        toggleBtn.innerHTML = header.classList.contains('collapsed') ? '▼' : '▲';
+    }
+
+    function init() {
+        const cols = 4, spacingX = 200, spacingY = 80, startX = 40, startY = 40;
+        dominoAdatok.forEach((d, i) => {
+            const el = document.createElement('div');
+            el.className = 'domino';
+            el.style.left = (startX + (i % cols) * spacingX) + 'px';
+            el.style.top  = (startY + Math.floor(i / cols) * spacingY) + 'px';
+            el.innerHTML  = `<div class="part title-side">${d.bal}</div><div class="part author-side">${d.jobb}</div>`;
+            makeDraggable(el);
+            canvas.appendChild(el);
+        });
+        applyTransform();
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
